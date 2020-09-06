@@ -1,5 +1,6 @@
 import { InitOption, IConfigOption, IModFs, IModPath, IConfigurationOption } from './inter';
 import * as typescript from 'typescript';
+import { concatStringArray } from './utils';
 export default class MidwayInitializr {
 
   public root: string;
@@ -9,8 +10,11 @@ export default class MidwayInitializr {
   private path: IModPath;
   private fs: IModFs;
   private ts: any;
+
+  private options: InitOption;
   private AstCache = {};
-  constructor(options) {
+  private codeInsertTips: string;
+  constructor(options: InitOption) {
     this.init(options);
   }
 
@@ -46,10 +50,11 @@ export default class MidwayInitializr {
     }
     // 确保文件中已经引入了 Configuration
     this.addImportToFile(file, '@midwayjs/decorator', 'named', ['Configuration']);
+
     // 处理依赖
-    if (options.dep) {
-      Object.keys(options.dep).forEach((modName: string) => {
-        const depConfig = options.dep[modName];
+    if (options.deps) {
+      Object.keys(options.deps).forEach((modName: string) => {
+        const depConfig = options.deps[modName];
         let importType;
         let namedList;
 
@@ -66,7 +71,7 @@ export default class MidwayInitializr {
         this.addImportToFile(file, modName, importType, namedList);
       });
     }
-    // 有 Configuration 的class
+    // 寻找有 Configuration 的class
     let configurationItem;
     let statementIndex = -1;
     for (const statement of file.statements) {
@@ -92,7 +97,7 @@ export default class MidwayInitializr {
     }
     // 代码中不存在有 Configuration 的class，那么就新增
     if (!configurationItem) {
-      const decorator = ts.createDecorator(
+      const onfigurationItem = ts.createDecorator(
         ts.createCall(
           ts.createIdentifier('Configuration'),
           undefined,
@@ -100,7 +105,7 @@ export default class MidwayInitializr {
         ),
       );
       const configurationStatement = ts.createClassDeclaration(
-        [ decorator ],
+        [ onfigurationItem ],
         [ ts.createModifier(ts.SyntaxKind.ExportKeyword) ],
         ts.createIdentifier('ContainerConfiguration'),
         undefined,
@@ -108,17 +113,146 @@ export default class MidwayInitializr {
         [],
       );
       configurationItem = {
-        decorator,
+        decorator: onfigurationItem,
         statement: configurationStatement,
       };
       file.statements.push(configurationStatement);
+    }
+
+    // 处理decorator参数
+    if (options.decoratorParams) {
+      const { decorator } = configurationItem;
+
+      // 装饰器参数
+      const args = decorator.expression.arguments;
+      if (!args.length) {
+        args.push(ts.createObjectLiteral([], true));
+      }
+      const [argObj] = args;
+      const allParamKey = Object.keys(options.decoratorParams);
+      for (const paramKey of allParamKey) {
+        const value = options.decoratorParams[paramKey];
+        const findDecoratorParam = argObj.properties.find((property) => {
+          return property?.name?.escapedText === paramKey;
+        });
+        // 如果没有对应的值
+        if (!findDecoratorParam) {
+          argObj.properties.push(ts.createPropertyAssignment(
+            ts.createIdentifier(paramKey),
+            this.createAstValue(value),
+          ));
+          continue;
+        }
+
+        // 如果值是数组
+        if (Array.isArray(value) && findDecoratorParam.initializer.kind === SyntaxKind.ArrayLiteralExpression) {
+          const current = findDecoratorParam.initializer.elements.map((element) => element.text);
+          const newStringList = concatStringArray(current, value);
+          findDecoratorParam.initializer.elements = newStringList.map((str) => this.createAstValue(str));
+        }
+
+        // Todo: 如果值是其他类型，目前没有碰到，不做处理
+      }
+    }
+
+    // 处理属性
+    if (options.properties) {
+      const { statement } = configurationItem;
+      const allProperties = Object.keys(options.properties);
+      for (const property of allProperties) {
+        const propertyInfo = options.properties[property];
+        const newProperty = ts.createProperty(
+          propertyInfo.decorator ? [
+            ts.createDecorator(ts.createCall(
+              ts.createIdentifier(propertyInfo.decorator),
+              undefined,
+              [],
+            )),
+          ] : undefined,
+          undefined,
+          ts.createIdentifier(property),
+          undefined,
+          ts.createKeywordTypeNode(ts.SyntaxKind.AnyKeyword),
+          propertyInfo.value === undefined ? undefined : this.createAstValue(propertyInfo.value),
+        );
+        const findMemberIndex = statement.members.findIndex((member) => {
+          if (member.kind !== SyntaxKind.PropertyDeclaration) {
+            return;
+          }
+          return member.name.escapedText === property;
+        });
+        if (findMemberIndex !== -1) {
+          statement.members[findMemberIndex] = newProperty;
+        } else {
+          statement.members.unshift(newProperty);
+        }
+      }
+    }
+
+    // 处理方法
+    if (options.methods) {
+      const { statement } = configurationItem;
+      const allMethods = Object.keys(options.methods);
+      for (const method of allMethods) {
+        const methodInfo = options.methods[method];
+        const findMethodMember = statement.members.find((member) => {
+          if (member.kind !== SyntaxKind.MethodDeclaration) {
+            return;
+          }
+          return member.name.escapedText === method;
+        });
+
+        // 新增的block
+        const allMethodBlocks = [];
+        if (methodInfo.block) {
+          methodInfo.block.forEach((methodBlock) => {
+            const newBlock = this.codeToBlock(methodBlock);
+            if (Array.isArray(newBlock)) {
+              allMethodBlocks.push(...newBlock);
+            } else {
+              allMethodBlocks.push(newBlock);
+            }
+          });
+        }
+
+        // 如果没有找到，那很简单，创建就行了
+        if (!findMethodMember) {
+          const methodMember = ts.createMethod(
+            undefined,
+            methodInfo.async ? [ts.createModifier(ts.SyntaxKind.AsyncKeyword)] : undefined,
+            undefined,
+            ts.createIdentifier(method),
+            undefined,
+            undefined,
+            methodInfo.params.map((param) => {
+              return ts.createParameter(
+                undefined,
+                undefined,
+                undefined,
+                ts.createIdentifier(param.name),
+                undefined,
+                ts.createKeywordTypeNode(ts.SyntaxKind.AnyKeyword),
+                undefined,
+              );
+            }),
+            undefined,
+            ts.createBlock(allMethodBlocks, true),
+          );
+          statement.members.push(methodMember);
+          continue;
+        }
+
+        // 如果找到了
+        const blockStatements = findMethodMember.body.statements;
+        blockStatements.push(...allMethodBlocks);
+      }
     }
   }
 
   // 输出生成的文件
   public output() {
     const printer: typescript.Printer = this.ts.createPrinter({
-      newLine: this.ts.NewLineKind.LineFeed,
+      newLine: this.ts.NewLineKind.CarriageReturnLineFeed,
       removeComments: false,
     });
     const { writeFileSync } = this.fs;
@@ -131,7 +265,9 @@ export default class MidwayInitializr {
 
   // 初始化，设置参数
   private init(options: InitOption) {
-    const { type, fs, path, root, ts } = options;
+    const { type, fs, path, root, ts, codeInsertTips } = options;
+    this.options = options;
+    this.options.singleQuote = this.options.singleQuote ?? true;
     if (!root) {
       return;
     }
@@ -151,6 +287,9 @@ export default class MidwayInitializr {
       default:
         this.faasRoot = this.sourceRoot;
     }
+
+    // 代码插入提示
+    this.codeInsertTips = codeInsertTips;
   }
 
   // 安装环境设置项目配置
@@ -255,7 +394,7 @@ export default class MidwayInitializr {
       case 'number':
         return this.ts.createNumericLiteral(value + '');
       case 'string':
-        return this.ts.createStringLiteral(value);
+        return this.ts.createStringLiteral(value, this.options.singleQuote);
       case 'boolean':
         return value ? this.ts.createTrue() : this.ts.createFalse();
       case 'array':
@@ -301,9 +440,9 @@ export default class MidwayInitializr {
         undefined,
         undefined,
         this.getImportNamedBindings(importType, namedList),
-        ts.createStringLiteral(moduleName),
+        this.createAstValue(moduleName),
       );
-      file.statements.push(importStatemanet);
+      file.statements.unshift(importStatemanet);
       return;
     }
 
@@ -363,5 +502,27 @@ export default class MidwayInitializr {
         false,
       );
     }
+  }
+
+  private codeToBlock(code: string) {
+    const file = this.ts.createSourceFile('tmp.ts', `${this.codeInsertTips ? `// ${this.codeInsertTips}\n` : ''}${ code}`);
+    // 如果是单引号，遍历强制指定
+    if (this.options.singleQuote) {
+      this.walk(file, (node) => {
+        if (this.ts.isStringLiteral(node)) {
+          (node as any).singleQuote = true;
+        }
+      });
+    }
+    return file.statements;
+  }
+
+  private walk(node: typescript.Node, cb): void {
+    this.ts.forEachChild(node, (n) => {
+      if (cb) {
+          cb(n);
+      }
+      this.walk(n, cb);
+    });
   }
 }
