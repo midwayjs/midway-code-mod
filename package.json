@@ -1,7 +1,7 @@
 {
-  "name": "midway-initializr",
+  "name": "@midwayjs/code-operation",
   "version": "0.1.0",
-  "description": "midway-initializr",
+  "description": "code-operation",
   "typings": "dist/index.d.ts",
   "main": "dist/index.js",
   "files": [

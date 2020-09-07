@@ -1,24 +1,36 @@
 import { InitOption, IConfigOption, IModFs, IModPath, IConfigurationOption } from './inter';
 import * as typescript from 'typescript';
 import { concatStringArray } from './utils';
-export default class MidwayInitializr {
+import { ImportType, ProjectType } from './constants';
+export * from './constants';
+export class MidwayInitializr {
 
+  // 项目根目录，即存在package.json的目录
   public root: string;
+  // 源码根目录，即 src
   public sourceRoot: string;
+  // 函数代码根目录，一体化为 src/apis，其他为 src
   public faasRoot: string;
 
+  // 引入模块依赖，需要外部传入的原因是为了支持浏览器端调用，可以用虚拟文件系统
   private path: IModPath;
   private fs: IModFs;
   private ts: any;
 
   private options: InitOption;
+
+  // 缓存AST结果，在output的时候直接输出
   private AstCache = {};
+  // 缓存package.json结果，在output的时候直接输出
+  private PkgJsonCache;
   private codeInsertTips: string;
   constructor(options: InitOption) {
+    // 初始化
     this.init(options);
   }
 
-  // 修改项目配置
+  // 修改项目配置，即 config 目录下的 config.$env.ts 文件
+  // Todo：目前仅支持 export const 形式，对于 export default method 形式暂未支持
   public config(options: IConfigOption) {
     const envConfig = {};
     const envList = [];
@@ -37,7 +49,7 @@ export default class MidwayInitializr {
     });
   }
 
-  // 修改 configuration
+  // 修改 configuration，即 configuration.ts 文件
   public configuration(options: IConfigurationOption) {
     const configutationSource = this.path.join(this.faasRoot, 'configuration.ts');
     this.ensureFile(configutationSource);
@@ -49,7 +61,7 @@ export default class MidwayInitializr {
       file.statements = [];
     }
     // 确保文件中已经引入了 Configuration
-    this.addImportToFile(file, '@midwayjs/decorator', 'named', ['Configuration']);
+    this.addImportToFile(file, '@midwayjs/decorator', ImportType.NAMED, ['Configuration']);
 
     // 处理依赖
     if (options.deps) {
@@ -61,10 +73,10 @@ export default class MidwayInitializr {
         // if true :e.g. import 'mysql2'
         if (depConfig !== true) {
           if (depConfig.nameList?.length) {
-            importType = 'named';
+            importType = ImportType.NAMED;
             namedList = depConfig.nameList;
           } else {
-            importType = depConfig.isNameSpece ? 'namespace' : 'normal';
+            importType = depConfig.isNameSpece ? ImportType.NAMESPACED : ImportType.NORMAL;
             namedList = depConfig.name;
           }
         }
@@ -202,7 +214,7 @@ export default class MidwayInitializr {
           return member.name.escapedText === method;
         });
 
-        // 新增的block
+        // 新增的block，无论有没有对应的方法，block总是要创建
         const allMethodBlocks = [];
         if (methodInfo.block) {
           methodInfo.block.forEach((methodBlock) => {
@@ -242,25 +254,58 @@ export default class MidwayInitializr {
           continue;
         }
 
-        // 如果找到了
+        // 如果找到了，直接把新的block塞入到老的方法内部
+        // Todo: 由于老的方法参数可能与既定的参数不一致，那么需要对内部的参数调用进行处理，例如 ${args[0]} 变量进行替换
         const blockStatements = findMethodMember.body.statements;
         blockStatements.push(...allMethodBlocks);
       }
     }
   }
 
+  // 插入依赖，插入到package.json文件内
+  public dep(moduleName: string, version?: string, isDev?: boolean) {
+    if (!this.PkgJsonCache) {
+      const pkgJsonFile = this.path.join(this.root, 'package.json');
+      this.ensureFile(pkgJsonFile);
+      try {
+        this.PkgJsonCache = JSON.parse(this.fs.readFileSync(pkgJsonFile).toString());
+      } catch {
+        this.PkgJsonCache = {};
+      }
+    }
+    // 标明是开发时依赖还是生产依赖
+    const depKey = isDev ? 'devDependencies' : 'dependencies';
+    if (!this.PkgJsonCache[depKey]) {
+      this.PkgJsonCache[depKey] = {};
+    }
+    // 只有在没有标注模块依赖，或者依赖的版本为*的时候，才插入
+    if (!this.PkgJsonCache[depKey][moduleName] || this.PkgJsonCache[depKey][moduleName] === '*' ) {
+      this.PkgJsonCache[depKey][moduleName] = version || '*';
+    }
+  }
+
   // 输出生成的文件
   public output() {
+    const result: any = {};
     const printer: typescript.Printer = this.ts.createPrinter({
       newLine: this.ts.NewLineKind.CarriageReturnLineFeed,
       removeComments: false,
     });
     const { writeFileSync } = this.fs;
     Object.keys(this.AstCache).forEach((filePath) => {
+      if (!result.files) {
+        result.files = [];
+      }
+      result.files.push(filePath);
       const sourceFile: typescript.SourceFile = this.AstCache[filePath].file;
       const newCode = printer.printFile(sourceFile);
       writeFileSync(filePath, newCode);
     });
+    if (this.PkgJsonCache) {
+      const pkgJsonFile = this.path.join(this.root, 'package.json');
+      this.fs.writeFileSync(pkgJsonFile, JSON.stringify(this.PkgJsonCache, null, 2));
+    }
+    return result;
   }
 
   // 初始化，设置参数
@@ -281,7 +326,7 @@ export default class MidwayInitializr {
     this.sourceRoot = this.path.join(this.root, 'src');
     // 项目faas代码目录
     switch (type) {
-      case 'integration':
+      case ProjectType.INTEGRATION:
         this.faasRoot = this.path.join(this.sourceRoot, 'apis');
         break;
       default:
@@ -349,7 +394,7 @@ export default class MidwayInitializr {
     }
   }
 
-  // 根据文件获取AST
+  // 根据文件路径获取AST，如果不存在则创建空的AST
   private getAstByFile(filePath: string) {
     if (!this.AstCache[filePath]) {
       this.AstCache[filePath] = {};
@@ -386,7 +431,7 @@ export default class MidwayInitializr {
     }
   }
 
-  // 创建AST的值，用于替换
+  // 创建AST的值，用于替换原有AST结构中的值
   private createAstValue(value) {
     const type = ([]).toString.call(value).slice(8, -1).toLowerCase();
     const ts = this.ts;
@@ -426,6 +471,7 @@ export default class MidwayInitializr {
     if (!file) {
       return;
     }
+    this.dep(moduleName);
     const ts = this.ts;
     const { SyntaxKind } = ts;
     const importConfiguration = file.statements.find((statement: any) => {
@@ -447,7 +493,7 @@ export default class MidwayInitializr {
     }
 
     const { importClause } = importConfiguration;
-    if (importType === 'named') {
+    if (importType === ImportType.NAMED) {
       // 如果都是named导入
       if (importClause.namedBindings.kind === SyntaxKind.NamedImports) {
         const elements = importClause.namedBindings.elements;
@@ -476,7 +522,7 @@ export default class MidwayInitializr {
     if (!bindName) {
       return undefined;
     }
-    if (namedType === 'named') {
+    if (namedType === ImportType.NAMED) {
       // import { xxx, xxx2 } from 形式
       return this.ts.createImportClause(
         undefined,
@@ -487,7 +533,7 @@ export default class MidwayInitializr {
         ),
         false,
       );
-    } else if (namedType === 'namespace') {
+    } else if (namedType === ImportType.NAMESPACED) {
       // import * as xxx from 形式
       return this.ts.createImportClause(
         undefined,
@@ -504,6 +550,7 @@ export default class MidwayInitializr {
     }
   }
 
+  // 转换代码到代码块AST，这里直接用 createSourceFile 会方便一些
   private codeToBlock(code: string) {
     const file = this.ts.createSourceFile('tmp.ts', `${this.codeInsertTips ? `// ${this.codeInsertTips}\n` : ''}${ code}`);
     // 如果是单引号，遍历强制指定
@@ -517,6 +564,7 @@ export default class MidwayInitializr {
     return file.statements;
   }
 
+  // 遍历节点，对每一个节点调用cb回调
   private walk(node: typescript.Node, cb): void {
     this.ts.forEachChild(node, (n) => {
       if (cb) {

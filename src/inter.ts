@@ -1,6 +1,7 @@
+import { ProjectType } from './constants';
 export interface InitOption {
   root: string;
-  type?: 'integration' | 'normal';
+  type?: ProjectType;
   path?: IModPath;
   fs?: IModFs;
   ts?: IModTs;
@@ -20,6 +21,7 @@ export interface IConfigOption {
 
 export interface IModFs {
   existsSync: any;
+  readFileSync: any;
   writeFileSync: any;
   mkdirSync: any;
 }
