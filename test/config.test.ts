@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import { MidwayInitializr } from '../src';
+import { MidwayCodeMod } from '../src';
 import { join } from 'path';
 import { remove, existsSync, readFileSync, copy } from 'fs-extra';
 const removeOutput = async () => {
@@ -20,34 +20,27 @@ const removeOutput = async () => {
 describe('/test/config.test.ts', () => {
   it('not exists', async () => {
     const { root, source } = await removeOutput();
-    const izr = new MidwayInitializr({
+    const codemodInstance = new MidwayCodeMod({
       root,
     });
-    izr.config({
-      testNumber: {
+    codemodInstance
+      .config()
+      .set('testNumber', {
         local: 123,
-      },
-      testBooleanTrue: {
+      })
+      .set('testBooleanTrue', {
         local: true,
-      },
-      testBooleanFalse: {
+      })
+      .set('testBooleanFalse', {
         local: false,
-      },
-      testArray: {
-        local: [123, true, false],
-      },
-      testRegexp: {
+      })
+      .set('testRegexp', {
         local: /xxx/,
-      },
-      test: {
-        local: {
-          name: 'test',
-          age: 123,
-          ignore: /xxx/,
-        },
-      },
-    });
-    izr.output();
+      })
+      .set('testArray', {
+        local: [123, true, false],
+      });
+    codemodInstance.done();
     const configFile = join(source, 'config/config.local.ts');
     assert(existsSync(configFile));
     const sourceCode = readFileSync(configFile).toString();
@@ -61,36 +54,31 @@ describe('/test/config.test.ts', () => {
     const { root, source } = await removeOutput();
     const configFile = join(source, 'config/config.local.ts');
     await copy(join(root, 'data/config.local.ts'), configFile);
-    const izr = new MidwayInitializr({
+    const codemodInstance = new MidwayCodeMod({
       root,
     });
-    izr.config({
-      b: {
-        local: 123,
-      },
-    });
-    izr.output();
+    codemodInstance.config().set('b', { local: 123 });
+    codemodInstance.done();
     const newSourceCode = readFileSync(configFile).toString();
-    console.log('newSourceCode', newSourceCode);
     assert(/export const b\s*\/\* comment \*\/\s*= 123;/.test(newSourceCode));
     await removeOutput();
   });
   it('multi env', async () => {
     const { root, source } = await removeOutput();
-    const izr = new MidwayInitializr({
+    const codemodInstance = new MidwayCodeMod({
       root,
     });
-    izr.config({
-      test: {
+    codemodInstance
+      .config()
+      .set('test', {
         local: 123,
         default: 200,
-      },
-      test2: {
+      })
+      .set('test2', {
         local: 2123,
         default: 2200,
-      },
-    });
-    izr.output();
+      });
+    codemodInstance.done();
     const localFile = join(source, 'config/config.local.ts');
     assert(existsSync(localFile));
     const defaultFile = join(source, 'config/config.default.ts');

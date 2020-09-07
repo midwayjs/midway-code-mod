@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import { MidwayInitializr } from '../src';
+import { MidwayCodeMod } from '../src';
 import { join } from 'path';
 import { remove, existsSync, readFileSync, copy } from 'fs-extra';
 const removeOutput = async () => {
@@ -21,25 +21,32 @@ describe('/test/configuration.test.ts', () => {
   // configuration.ts 文件不存在
   it('not exists', async () => {
     const { root, source } = await removeOutput();
-    const izr = new MidwayInitializr({
+    const codemodInstance = new MidwayCodeMod({
       root,
     });
-    izr.configuration({
-      deps: {
-        fs: {
-          nameList: ['writeFileSync', 'existsSync'],
+    codemodInstance
+      .configuration()
+      .setImportConfigs(['./config/'])
+      .setImports(['@midwayjs/faas-middleware-static-file']);
+
+    codemodInstance
+      .denpendency()
+      .addToFile(
+        codemodInstance.Variables.Configuraion.File,
+        {
+          moduleName: 'fs',
+          name: ['writeFileSync', 'existsSync'],
         },
-        path: {
+      )
+      .addToFile(
+        codemodInstance.Variables.Configuraion.File,
+        {
+          moduleName: 'path',
           name: 'path',
-          isNameSpece: true,
+          isNameSpace: true,
         },
-      },
-      decoratorParams: {
-        importConfigs: ['./config/'],
-        imports: ['@midwayjs/faas-middleware-static-file'],
-      },
-    });
-    izr.output();
+      );
+    codemodInstance.done();
     const configFile = join(source, 'configuration.ts');
     assert(existsSync(configFile));
     const sourceCode = readFileSync(configFile).toString();
@@ -52,42 +59,39 @@ describe('/test/configuration.test.ts', () => {
   it('exists', async () => {
     const { root, source } = await removeOutput();
     await copy(join(root, 'data/configuration.ts'), join(source, 'configuration.ts'));
-    const izr = new MidwayInitializr({
+    const codemodInstance = new MidwayCodeMod({
       root,
     });
-    izr.configuration({
-      deps: {
-        fs: {
-          nameList: ['writeFileSync', 'existsSync'],
+    codemodInstance
+      .configuration()
+      .setImportConfigs(['./config/'])
+      .setImports(['@midwayjs/faas-middleware-static-file'])
+      .setProperty('ctx', {
+        decorator: 'Inject',
+      })
+      .setProperty('config', {
+        decorator: 'Config',
+      })
+      .setOnReady(`console.log('test');`);
+
+    codemodInstance
+      .denpendency()
+      .addToFile(
+        codemodInstance.Variables.Configuraion.File,
+        {
+          moduleName: 'fs',
+          name: ['writeFileSync', 'existsSync'],
         },
-        path: {
+      )
+      .addToFile(
+        codemodInstance.Variables.Configuraion.File,
+        {
+          moduleName: 'path',
           name: 'path',
-          isNameSpece: true,
+          isNameSpace: true,
         },
-      },
-      decoratorParams: {
-        importConfigs: ['./config/'],
-        imports: ['@midwayjs/faas-middleware-static-file'],
-      },
-      properties: {
-        ctx: {
-          decorator: 'Inject',
-        },
-        config: {
-          decorator: 'Config',
-        },
-      },
-      methods: {
-        onReady: {
-          async: true,
-          params: [{ name: 'conatiner'}],
-          block: [
-            `console.log('test');`,
-          ],
-        },
-      },
-    });
-    izr.output();
+      );
+    codemodInstance.done();
     const configFile = join(source, 'configuration.ts');
     assert(existsSync(configFile));
     const sourceCode = readFileSync(configFile).toString();
@@ -101,42 +105,35 @@ describe('/test/configuration.test.ts', () => {
   it('with comments', async () => {
     const { root, source } = await removeOutput();
     await copy(join(root, 'data/configuration-with-comments.ts'), join(source, 'configuration.ts'));
-    const izr = new MidwayInitializr({
+    const codemodInstance = new MidwayCodeMod({
       root,
     });
-    izr.configuration({
-      deps: {
-        '@midwayjs/decorator': {
-          nameList: ['Inject', 'Config', 'Logger'],
+    codemodInstance
+      .configuration()
+      .setImportConfigs(['./config/'])
+      .setImports(['@midwayjs/faas-middleware-static-file', 'test1', 'test2'])
+      .setProperty('ctx', {
+        decorator: 'Inject',
+      })
+      .setProperty('config', {
+        decorator: 'Config',
+      })
+      .setProperty('logger', {
+        decorator: 'Logger',
+      })
+      .setOnReady(`console.log('test');`);
+
+    codemodInstance
+      .denpendency()
+      .addToFile(
+        codemodInstance.Variables.Configuraion.File,
+        {
+          moduleName: '@midwayjs/decorator',
+          name: ['Inject', 'Config', 'Logger'],
         },
-      },
-      decoratorParams: {
-        importConfigs: ['./config/config.default'],
-        imports: ['test1', 'test2'],
-      },
-      properties: {
-        ctx: {
-          decorator: 'Inject',
-        },
-        config: {
-          decorator: 'Config',
-        },
-        logger: {
-          decorator: 'Logger',
-        },
-      },
-      methods: {
-        onReady: {
-          async: true,
-          params: [{ name: 'conatiner'}],
-          block: [
-            `console.log('test');`,
-          ],
-        },
-      },
-    });
-    izr.dep('@midwayjs/decorator', '^1.0.0');
-    izr.output();
+      )
+      .addToPackage('@midwayjs/decorator', '^1.0.0');
+    codemodInstance.done();
     const configFile = join(source, 'configuration.ts');
     const pkgJsonFile = join(root, 'package.json');
     assert(existsSync(configFile));

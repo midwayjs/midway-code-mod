@@ -1,11 +1,16 @@
 import { ProjectType } from './constants';
+export interface IModCore {
+  getAstByFile(filePath: string): any;
+  getPkgJsonCache(): any;
+  setPkgJsonCache(newPkgJson: any): void;
+}
+export interface IModOptions {
+  root: string;
+  faasRoot: string;
+}
 export interface InitOption {
   root: string;
   type?: ProjectType;
-  path?: IModPath;
-  fs?: IModFs;
-  ts?: IModTs;
-  codeInsertTips?: string;
   singleQuote?: boolean;
 }
 export interface IConfigOption {
@@ -17,21 +22,6 @@ export interface IConfigOption {
     default?: any;
     unittest?: any;
   };
-}
-
-export interface IModFs {
-  existsSync: any;
-  readFileSync: any;
-  writeFileSync: any;
-  mkdirSync: any;
-}
-
-export interface IModPath {
-  join: any;
-}
-
-export interface IModTs {
-  createProgram: any;
 }
 
 export interface IConfigurationOption {
@@ -62,4 +52,10 @@ export interface IConfigurationOption {
       block?: string[];              // 逻辑代码块
     };
   };
+}
+
+export interface IDenpendencyModuleInfo {
+  moduleName: string;
+  name?: string | string[];
+  isNameSpace?: boolean;
 }
