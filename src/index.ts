@@ -3,11 +3,11 @@ import * as ts from 'typescript';
 import { ConfigMod } from './config';
 import { ConfigurationMod } from './configuration';
 import { DenpendencyMod } from './denpendency';
-import { ProjectType } from './constants';
-import { existsSync, writeFileSync, ensureFileSync } from 'fs-extra';
-import { walkNode } from './utils';
+import { ProjectType, CacheType } from './constants';
+import { existsSync, writeFileSync, readFileSync, ensureFileSync } from 'fs-extra';
+import * as prettier from 'prettier';
 import { join } from 'path';
-export * from './constants';
+export { ProjectType } from './constants';
 export class MidwayCodeMod {
 
   // 项目根目录，即存在package.json的目录
@@ -19,10 +19,9 @@ export class MidwayCodeMod {
 
   private options: InitOption;
 
-  // 缓存AST结果，在output的时候直接输出
-  private AstCache = {};
+  // 内部cache
+  private Cache = {};
   // 缓存package.json结果，在output的时候直接输出
-  private PkgJsonCache;
   constructor(options: InitOption) {
     // 初始化
     this.init(options);
@@ -41,7 +40,7 @@ export class MidwayCodeMod {
 
   // 插入依赖，插入到package.json文件内
   public denpendency() {
-    return new DenpendencyMod(this.getModCore(), this.getModOptions());
+    return new DenpendencyMod(this.getModCore());
   }
 
   // 输出生成的文件
@@ -51,23 +50,23 @@ export class MidwayCodeMod {
       newLine: ts.NewLineKind.CarriageReturnLineFeed,
       removeComments: false,
     });
-    Object.keys(this.AstCache).forEach((filePath) => {
+    const astCache = this.getCache(CacheType.AST);
+    Object.keys(astCache).forEach((filePath) => {
       if (!result.files) {
         result.files = [];
       }
       result.files.push(filePath);
-      const sourceFile: ts.SourceFile = this.AstCache[filePath].file;
-      if (this.options.singleQuote) {
-        this.quoteToSingle(sourceFile);
-      }
+      const sourceFile: ts.SourceFile = astCache[filePath].file;
       const newCode = printer.printFile(sourceFile);
+      const prettierCode = this.prettier(newCode);
       ensureFileSync(filePath);
-      writeFileSync(filePath, newCode);
+      writeFileSync(filePath, prettierCode);
     });
-    if (this.PkgJsonCache) {
+    const pkgJson = this.getCache(CacheType.FILE, 'package.json');
+    if (pkgJson) {
       const pkgJsonFile = join(this.root, 'package.json');
       ensureFileSync(pkgJsonFile);
-      writeFileSync(pkgJsonFile, JSON.stringify(this.PkgJsonCache, null, 2));
+      writeFileSync(pkgJsonFile, JSON.stringify(pkgJson, null, 2));
     }
     return result;
   }
@@ -87,7 +86,6 @@ export class MidwayCodeMod {
   private init(options: InitOption) {
     const { type, root } = options;
     this.options = options;
-    this.options.singleQuote = this.options.singleQuote ?? true;
     if (!root) {
       return;
     }
@@ -109,13 +107,9 @@ export class MidwayCodeMod {
   private getModCore() {
     return {
       getAstByFile: this.getAstByFile.bind(this),
-      getPkgJsonCache: () => this.PkgJsonCache,
-      setPkgJsonCache: (PkgJsonCache) => {
-        this.PkgJsonCache = PkgJsonCache;
-      },
+      getPkgJson: this.getPkgJson.bind(this),
     };
   }
-
   // 生成 operation core，供子组件使用
   private getModOptions() {
     return {
@@ -124,10 +118,21 @@ export class MidwayCodeMod {
     };
   }
 
+  // 获取package.json
+  private getPkgJson() {
+    return this.getCache(CacheType.FILE, 'package.json', () => {
+      const pkgJsonFile = join(this.root, 'package.json');
+      try {
+        return JSON.parse(readFileSync(pkgJsonFile).toString());
+      } catch {
+        return {};
+      }
+    });
+  }
+
   // 根据文件路径获取AST，如果不存在则创建空的AST
   private getAstByFile(filePath: string) {
-    if (!this.AstCache[filePath]) {
-      this.AstCache[filePath] = {};
+    return this.getCache(CacheType.AST, filePath, () => {
       let file: ts.SourceFile;
       if (existsSync(filePath)) {
         const program: ts.Program = ts.createProgram([filePath], {});
@@ -135,19 +140,30 @@ export class MidwayCodeMod {
       } else {
         file = ts.createSourceFile(filePath, '', ts.ScriptTarget.ES2018);
       }
-      this.AstCache[filePath] = {
-        file,
-      };
-    }
-    return this.AstCache[filePath];
+      return { file };
+    });
   }
 
-  private quoteToSingle(node) {
-    // 如果是单引号，遍历强制指定
-    walkNode(node, (innerNode) => {
-      if (ts.isStringLiteral(innerNode)) {
-        (innerNode as any).singleQuote = true;
-      }
+  // 获取缓存的值，如果没有缓存，则调用 noCacheCallback 来生成缓存数据
+  private getCache(cacheType: CacheType, cacheKey?: string, noCacheCallback?) {
+    if (!this.Cache[cacheType]) {
+      this.Cache[cacheType] = {};
+    }
+    // 如果没有key，则直接返回某类型的所有cache
+    if (!cacheKey) {
+      return this.Cache[cacheType];
+    }
+    if (!this.Cache[cacheType][cacheKey]) {
+      this.Cache[cacheType][cacheKey] = noCacheCallback && noCacheCallback();
+    }
+    return this.Cache[cacheType][cacheKey];
+  }
+
+  // 格式化代码
+  private prettier(code) {
+    return prettier.format(code, {
+      parser: 'typescript',
+      singleQuote: this.options.singleQuote ?? true,
     });
   }
 }

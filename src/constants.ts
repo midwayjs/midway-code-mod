@@ -8,3 +8,8 @@ export enum ProjectType {
   INTEGRATION = 'integration',
   NORMAL = 'normal',
 }
+
+export enum CacheType {
+  AST = 'ast',
+  FILE = 'file',
+}

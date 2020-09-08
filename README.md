@@ -14,8 +14,8 @@ import { MidwayCodeMod, ProjectType } from '@midwayjs/code-mod';
 // 初始化
 const codeMod = new MidwayCodeMod({
   root,                           // 项目根目录
-  type: ProjectType.INTEGRATION,  // 项目类型 
-  singleQuote: true               // 导出的代码中字符串是否使用单引号
+  type: ProjectType.INTEGRATION,  // 默认为 NORMAL，一体化需要传 ProjectType.INTEGRATION
+  singleQuote: true               // 默认为 true，导出的代码中字符串是否使用单引号
 });
 
 codeMod

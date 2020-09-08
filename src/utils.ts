@@ -76,13 +76,3 @@ export const codeToBlock = (code: string) => {
   const file = ts.createSourceFile('tmp.ts', code, ts.ScriptTarget.ES2018);
   return file.statements;
 };
-
-// 遍历节点，对每一个节点调用cb回调
-export const walkNode = (node: ts.Node, cb): void => {
-  ts.forEachChild(node, (n) => {
-    if (cb) {
-        cb(n);
-    }
-    walkNode(n, cb);
-  });
-};

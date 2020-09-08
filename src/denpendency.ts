@@ -1,15 +1,11 @@
-import { IModCore, IModOptions, IDenpendencyModuleInfo } from './interface';
+import { IModCore, IDenpendencyModuleInfo } from './interface';
 import * as ts from 'typescript';
-import { join } from 'path';
-import { readFileSync } from 'fs-extra';
 import { ImportType } from './constants';
 import { createAstValue } from './utils';
 export class DenpendencyMod {
   private core: IModCore;
-  private options: IModOptions;
-  constructor(core: IModCore, options: IModOptions) {
+  constructor(core: IModCore) {
     this.core = core;
-    this.options = options;
   }
 
   // 向一个文件内插入import代码
@@ -85,16 +81,7 @@ export class DenpendencyMod {
 
   // 插入依赖，插入到package.json文件内
   public addToPackage(moduleName: string, version?: string, isDevDependency?: boolean) {
-    let PkgJsonCache = this.core.getPkgJsonCache();
-    if (!PkgJsonCache) {
-      const pkgJsonFile = join(this.options.root, 'package.json');
-      // ensureFileSync(pkgJsonFile);
-      try {
-        PkgJsonCache = JSON.parse(readFileSync(pkgJsonFile).toString());
-      } catch {
-        PkgJsonCache = {};
-      }
-    }
+    const PkgJsonCache = this.core.getPkgJson();
     // 标明是开发时依赖还是生产依赖
     const depKey = isDevDependency ? 'devDependencies' : 'dependencies';
     if (!PkgJsonCache[depKey]) {
@@ -104,7 +91,6 @@ export class DenpendencyMod {
     if (!PkgJsonCache[depKey][moduleName] || PkgJsonCache[depKey][moduleName] === 'latest' ) {
       PkgJsonCache[depKey][moduleName] = version || 'latest';
     }
-    this.core.setPkgJsonCache(PkgJsonCache);
     return this;
   }
 

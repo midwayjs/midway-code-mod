@@ -1,4 +1,7 @@
-import { Configuration, Config } from '@midwayjs/decorator';
+import {
+  Configuration,
+  Config
+} from '@midwayjs/decorator';
 import TableStore from 'tablestore';
 
 @Configuration({  /* comment 0 */

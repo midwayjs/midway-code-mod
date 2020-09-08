@@ -1,8 +1,7 @@
 import { ProjectType } from './constants';
 export interface IModCore {
   getAstByFile(filePath: string): any;
-  getPkgJsonCache(): any;
-  setPkgJsonCache(newPkgJson: any): void;
+  getPkgJson(): any;
 }
 export interface IModOptions {
   root: string;
