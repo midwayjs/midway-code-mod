@@ -76,3 +76,143 @@ export const codeToBlock = (code: string) => {
   const file = ts.createSourceFile('tmp.ts', code, ts.ScriptTarget.ES2018);
   return file.statements;
 };
+
+// 设置一个文件导出的变量的值
+export const setFileExportVariable = (file: ts.SourceFile, variableName: string, value: any) => {
+  // 获取AST分析结果
+  const { SyntaxKind } = ts;
+  const newValue = createAstValue(value);
+  for (const statement of file.statements) {
+    // 如果不是变量定义，不处理
+    if (statement.kind !== SyntaxKind.VariableStatement) {
+      continue;
+    }
+    const isExport = statement.modifiers?.find((modifier: ts.Modifier) => {
+      return modifier.kind === SyntaxKind.ExportKeyword;
+    });
+    // 如果没有导出，则不处理
+    if (!isExport) {
+      continue;
+    }
+    const declarations = (statement as any)?.declarationList?.declarations;
+    // 如果不存在变量定义，则跳过
+    if (!declarations?.length) {
+      continue;
+    }
+    for (const declaration of declarations) {
+      // 变量名
+      const name = declaration.name.escapedText;
+      if (variableName === name) {
+        declaration.initializer = newValue;
+        return;
+      }
+    }
+  }
+  // 曾经没有定义过的变量，需要插入到定义之中
+  // 创建变量的值
+  // 创建导出的变量表达式
+  const newStatement = ts.createVariableStatement(
+    [ts.createModifier(ts.SyntaxKind.ExportKeyword)],
+    ts.createVariableDeclarationList(
+      [ts.createVariableDeclaration(
+        ts.createIdentifier(variableName),
+        undefined,
+        newValue,
+      )],
+      ts.NodeFlags.Const,
+    ),
+  );
+  (file.statements as any).push(newStatement);
+};
+
+// 获取一个文件导出的变量的值
+export const getFileExportVariable = (file: ts.SourceFile) => {
+  const variableList = [];
+  // 获取AST分析结果
+  const { SyntaxKind } = ts;
+  for (const statement of file.statements) {
+    // 如果不是变量定义，不处理
+    if (statement.kind !== SyntaxKind.VariableStatement) {
+      continue;
+    }
+    const isExport = statement.modifiers?.find((modifier: ts.Modifier) => {
+      return modifier.kind === SyntaxKind.ExportKeyword;
+    });
+    // 如果没有导出，则不处理
+    if (!isExport) {
+      continue;
+    }
+    const declarations = (statement as any)?.declarationList?.declarations;
+    // 如果不存在变量定义，则跳过
+    if (!declarations?.length) {
+      continue;
+    }
+    for (const declaration of declarations) {
+      // 变量名
+      const name = declaration.name.escapedText;
+      variableList.push({
+        name,
+        value: nodeToValue(declaration.initializer),
+      });
+    }
+  }
+  return variableList;
+};
+
+// 转换 Ts Node 到 js 值
+export const nodeToValue = (node: ts.Node) => {
+  if (!node) {
+    return undefined;
+  }
+  switch (node.kind) {
+    // Object
+    case ts.SyntaxKind.ObjectLiteralExpression:
+      const obj = {};
+      const properties = (node as any).properties;
+      if (properties) {
+        properties.forEach((propertie) => {
+          const key = propertie.name.escapedText;
+          const value = nodeToValue(propertie.initializer);
+          obj[key] = value;
+        });
+      }
+      return obj;
+    // Array
+    case ts.SyntaxKind.ArrayLiteralExpression:
+      const arr = [];
+      const elements = (node as any).elements;
+      if (elements) {
+        elements.forEach((element) => {
+          arr.push(nodeToValue(element));
+        });
+      }
+      return arr;
+    // String
+    case ts.SyntaxKind.StringLiteral:
+      return (node as any).text || '';
+    // Regexp
+    case ts.SyntaxKind.RegularExpressionLiteral:
+      const regText = (node as any).text || '';
+      const regMatch = /^\/(.*?)\/([a-z]*)$/.exec(regText);
+      return new RegExp(regMatch[1], regMatch[2]);
+    // Number
+    case ts.SyntaxKind.NumericLiteral:
+      return parseFloat((node as any).text || '0');
+    // Boolean true
+    case ts.SyntaxKind.TrueKeyword:
+      return true;
+    // Boolean false
+    case ts.SyntaxKind.FalseKeyword:
+      return true;
+    // null
+    case ts.SyntaxKind.NullKeyword:
+      return null;
+    // undefined
+    case ts.SyntaxKind.Identifier:
+      const text = (node as any).escapedText;
+      if (text === 'undefined') {
+        return undefined;
+      }
+      return text;
+  }
+};

@@ -1,7 +1,9 @@
 import { ProjectType } from './constants';
+import * as ts from 'typescript';
 export interface IModCore {
   getAstByFile(filePath: string): any;
   getPkgJson(): any;
+  getInstance(): IModInstance;
 }
 export interface IModOptions {
   root: string;
@@ -12,49 +14,62 @@ export interface InitOption {
   type?: ProjectType;
   singleQuote?: boolean;
 }
-export interface IConfigOption {
-  [configKey: string]: {
-    local?: any;
-    daily?: any;
-    pre?: any;
-    prod?: any;
-    default?: any;
-    unittest?: any;
-  };
-}
-
-export interface IConfigurationOption {
-  deps?: {                         // 添加依赖
-    [moduleName: string]: {
-      name?: string;              // 模块全部引入
-      nameList?: string[];        // 引入部分
-      isNameSpece?: boolean;      // 是否为NameSpace引入
-    };
-  };
-  decoratorParams?: {
-    importConfigs?: string[];       // 引入配置
-    imports?: string[];             // 引入其他模块
-    [otherParam: string]: any;
-  };
-  properties?: {
-    [propertyName: string]: {
-      decorator?: string;
-      value?: any;
-    };
-  };
-  methods?: {
-    [methodName: string]: {
-      async?: boolean;              // 是否为 Async
-      params?: Array<{               // 参数，如果没有此方法的时候根据此参数来创建
-        name: string;
-      }>;
-      block?: string[];              // 逻辑代码块
-    };
-  };
-}
 
 export interface IDenpendencyModuleInfo {
   moduleName: string;
   name?: string | string[];
   isNameSpace?: boolean;
+}
+
+export interface IModInstance {
+  config: IConfigMod;
+  configuration: IConfigurationMod;
+  denpendency: IDenpendencyMod;
+  plugin: IPluginMod;
+}
+
+export interface IConfigMod {
+  set(configKey: string, multiEnvValue: any): IConfigMod;
+  get(configKey: string, env: string): any;
+  list(env: string): Array<{
+    name: string;
+    value: any;
+  }>;
+}
+
+export interface IConfigurationMod {
+  setImportConfigs(configList: string[]): IConfigurationMod;
+  setImports(configList: string[]): IConfigurationMod;
+  setProperty(property: string, propertyInfo: IPropertyInfo): IConfigurationMod;
+  setOnReady(code: string): IConfigurationMod;
+  setMethod(method: string, methodInfo: IMethodInfo): IConfigurationMod;
+}
+
+export interface IPropertyInfo {
+  decorator?: string;
+  value?: any;
+}
+
+export interface IMethodInfo {
+  async?: boolean;
+  block?: string[];
+  params?: Array<{ name: string }>;
+}
+
+export interface IDenpendencyMod {
+  addToFile(filePath: string, moduleInfo: IDenpendencyModuleInfo): IDenpendencyMod;
+  addToPackage(moduleName: string, version?: string, isDevDependency?: boolean): IDenpendencyMod;
+}
+
+export interface IPluginMod {
+  use(pluginName: string, pluginOptions?: any): IPluginMod;
+  list(): Array<{
+    name: string;
+    value: any;
+  }>;
+}
+
+export interface IConfigurationItem {
+  decorator: ts.Decorator;
+  statement: any;
 }

@@ -1,13 +1,9 @@
-import { IModCore, IDenpendencyModuleInfo } from './interface';
+import { IDenpendencyModuleInfo, IDenpendencyMod } from './interface';
 import * as ts from 'typescript';
 import { ImportType } from './constants';
 import { createAstValue } from './utils';
-export class DenpendencyMod {
-  private core: IModCore;
-  constructor(core: IModCore) {
-    this.core = core;
-  }
-
+import { BaseMod } from './base';
+export class DenpendencyMod extends BaseMod implements IDenpendencyMod {
   // 向一个文件内插入import代码
   public addToFile(filePath: string, moduleInfo: IDenpendencyModuleInfo) {
     if (!filePath) {

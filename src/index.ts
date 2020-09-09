@@ -1,8 +1,9 @@
-import { InitOption } from './interface';
+import { InitOption, IModInstance, IConfigMod, IConfigurationMod, IDenpendencyMod } from './interface';
 import * as ts from 'typescript';
 import { ConfigMod } from './config';
 import { ConfigurationMod } from './configuration';
 import { DenpendencyMod } from './denpendency';
+import { PluginMod } from './plugin';
 import { ProjectType, CacheType } from './constants';
 import { existsSync, writeFileSync, readFileSync, ensureFileSync } from 'fs-extra';
 import * as prettier from 'prettier';
@@ -21,7 +22,8 @@ export class MidwayCodeMod {
 
   // 内部cache
   private Cache = {};
-  // 缓存package.json结果，在output的时候直接输出
+  // 内置的各种操作实例
+  private instance: IModInstance;
   constructor(options: InitOption) {
     // 初始化
     this.init(options);
@@ -29,18 +31,23 @@ export class MidwayCodeMod {
 
   // 修改项目配置，即 config 目录下的 config.$env.ts 文件
   // Todo：目前仅支持 export const 形式，对于 export default method 形式暂未支持
-  public config(): ConfigMod {
-    return new ConfigMod(this.getModCore(), this.getModOptions());
+  public config(): IConfigMod {
+    return this.instance.config;
   }
 
   // 修改 configuration，即 configuration.ts 文件
-  public configuration(): ConfigurationMod {
-    return new ConfigurationMod(this.getModCore(), this.getModOptions());
+  public configuration(): IConfigurationMod {
+    return this.instance.configuration;
+  }
+
+  // 修改 plugin
+  public plugin() {
+    return this.instance.plugin;
   }
 
   // 插入依赖，插入到package.json文件内
-  public denpendency() {
-    return new DenpendencyMod(this.getModCore());
+  public denpendency(): IDenpendencyMod {
+    return this.instance.denpendency;
   }
 
   // 输出生成的文件
@@ -101,20 +108,22 @@ export class MidwayCodeMod {
       default:
         this.faasRoot = this.sourceRoot;
     }
-  }
-
-  // 生成 operation core，供子组件使用
-  private getModCore() {
-    return {
+    const modCore = {
       getAstByFile: this.getAstByFile.bind(this),
       getPkgJson: this.getPkgJson.bind(this),
+      getInstance: () => {
+        return this.instance;
+      },
     };
-  }
-  // 生成 operation core，供子组件使用
-  private getModOptions() {
-    return {
+    const modOption = {
       root: this.root,
       faasRoot: this.faasRoot,
+    };
+    this.instance = {
+      config: new ConfigMod(modCore, modOption),
+      configuration: new ConfigurationMod(modCore, modOption),
+      denpendency: new DenpendencyMod(modCore, modOption),
+      plugin: new PluginMod(modCore, modOption),
     };
   }
 

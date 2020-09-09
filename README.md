@@ -53,6 +53,27 @@ codeMod.config().set(
   }
 )
 ```
+#### get
+
+列举某环境下的所有配置
+```typescript
+get(key: string, env: string): any;
+// demo:
+const value = codeMod.config().get('test', 'local');
+value === 123;
+```
+
+#### list
+
+列举某环境下的所有配置
+```typescript
+list(env: string): Array<{
+  name: string;
+  value: any;
+}>;
+// demo:
+const configList = codeMod.config().list()
+```
 
 
 ### Configuration
@@ -155,5 +176,42 @@ addToPackage(
 
 // demo
 codeMod.denpendency().addToPackage('@midwayjs/decorator', '^1.0.0')
+```
+
+
+
+### Plugin
+
+插件处理
+
+#### use
+
+使用某插件
+
+```typescript
+use(pluginName: string, pluginOptions?: any)
+
+// demo
+codeMod.plugin().use('test');
+codeMod.plugin().use('test2', {
+  package: '@midwayjs/test'
+});
+```
+
+
+
+#### list
+
+列出来所有插件
+
+```typescript
+list(): Array<{
+  name: string;
+  value: any;
+}>;
+
+// demo
+const pluginList = codeMod.plugin().list();
+pluginList[0].value === true;
 ```
 

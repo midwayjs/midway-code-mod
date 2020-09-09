@@ -88,4 +88,30 @@ describe('/test/config.test.ts', () => {
     assert(/export const test2 = 2200;/.test(defaultFileCode));
     await removeOutput();
   });
+  it('get', async () => {
+    const { root, source } = await removeOutput();
+    const configFile = join(source, 'config/config.local.ts');
+    await copy(join(root, 'data/config.local.ts'), configFile);
+    const codemodInstance = new MidwayCodeMod({
+      root,
+    });
+    const a = codemodInstance.config().get('a', 'local');
+    assert(a === 123);
+    const b = codemodInstance.config().get('b', 'local');
+    assert(b === 456);
+    codemodInstance.done();
+    await removeOutput();
+  });
+  it('list', async () => {
+    const { root, source } = await removeOutput();
+    const configFile = join(source, 'config/config.local.ts');
+    await copy(join(root, 'data/config.local.ts'), configFile);
+    const codemodInstance = new MidwayCodeMod({
+      root,
+    });
+    const list = codemodInstance.config().list('local');
+    assert(list.length === 2);
+    codemodInstance.done();
+    await removeOutput();
+  });
 });

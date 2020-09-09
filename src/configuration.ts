@@ -1,17 +1,11 @@
-import { IModCore, IModOptions } from './interface';
+import { IConfigurationMod, IModInstance, IConfigurationItem, IPropertyInfo, IMethodInfo } from './interface';
 import { concatStringArray, createAstValue, codeToBlock } from './utils';
+import { BaseMod } from './base';
 import { join } from 'path';
 import * as ts from 'typescript';
-export class ConfigurationMod {
-  private core: IModCore;
-  private options: IModOptions;
-  private configurationItem: any;
-  constructor(core: IModCore, options: IModOptions) {
-    this.core = core;
-    this.options = options;
-    this.init();
-  }
+export class ConfigurationMod extends BaseMod implements IConfigurationMod {
 
+  private configurationItem: IConfigurationItem;
   public setImportConfigs(configList: string[]) {
     this.setDecoratorImport('importConfigs', configList);
     return this;
@@ -23,8 +17,8 @@ export class ConfigurationMod {
   }
 
   // 处理属性
-  public setProperty(property: string, propertyInfo: any) {
-    const { statement } = this.configurationItem;
+  public setProperty(property: string, propertyInfo: IPropertyInfo) {
+    const { statement } = this.getConfigurationItem();
     const newProperty = ts.createProperty(
       propertyInfo.decorator ? [
         ts.createDecorator(ts.createCall(
@@ -62,8 +56,8 @@ export class ConfigurationMod {
     return this;
   }
 
-  public setMethod(method: string, methodInfo: any) {
-    const { statement } = this.configurationItem;
+  public setMethod(method: string, methodInfo: IMethodInfo) {
+    const { statement } = this.getConfigurationItem();
     const findMethodMember = statement.members.find((member) => {
       if (member.kind !== ts.SyntaxKind.MethodDeclaration) {
         return;
@@ -93,7 +87,7 @@ export class ConfigurationMod {
         ts.createIdentifier(method),
         undefined,
         undefined,
-        methodInfo.params.map((param) => {
+        (methodInfo.params || []).map((param) => {
           return ts.createParameter(
             undefined,
             undefined,
@@ -118,11 +112,22 @@ export class ConfigurationMod {
     return this;
   }
 
-  private init() {
+  private getConfigurationItem(): IConfigurationItem {
+    if (this.configurationItem) {
+      return this.configurationItem;
+    }
     const { faasRoot } = this.options;
     const configutationSource = join(faasRoot, 'configuration.ts');
     const { SyntaxKind } = ts;
     const { file } = this.core.getAstByFile(configutationSource);
+
+    // 引入 Configuration 依赖
+    const coreInstance: IModInstance = this.core.getInstance();
+    coreInstance.denpendency.addToFile(configutationSource, {
+      moduleName: '@midwayjs/decorator',
+      name: ['Configuration'],
+    });
+
     if (!file.statements) {
       file.statements = [];
     }
@@ -152,7 +157,7 @@ export class ConfigurationMod {
     }
     // 代码中不存在有 Configuration 的class，那么就新增
     if (!configurationItem) {
-      const onfigurationItem = ts.createDecorator(
+      const decorator = ts.createDecorator(
         ts.createCall(
           ts.createIdentifier('Configuration'),
           undefined,
@@ -160,7 +165,7 @@ export class ConfigurationMod {
         ),
       );
       const configurationStatement = ts.createClassDeclaration(
-        [ onfigurationItem ],
+        [ decorator ],
         [ ts.createModifier(ts.SyntaxKind.ExportKeyword) ],
         ts.createIdentifier('ContainerConfiguration'),
         undefined,
@@ -168,19 +173,20 @@ export class ConfigurationMod {
         [],
       );
       configurationItem = {
-        decorator: onfigurationItem,
+        decorator,
         statement: configurationStatement,
       };
       file.statements.push(configurationStatement);
     }
     this.configurationItem = configurationItem;
+    return this.configurationItem;
   }
 
   private setDecoratorImport(paramKey: string, value: string[]) {
-    const { decorator } = this.configurationItem;
+    const { decorator } = this.getConfigurationItem();
 
     // 装饰器参数
-    const args = decorator.expression.arguments;
+    const args = (decorator.expression as any).arguments;
     if (!args.length) {
       args.push(ts.createObjectLiteral([], true));
     }
