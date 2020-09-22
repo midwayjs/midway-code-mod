@@ -15,10 +15,7 @@ export class ConfigMod extends BaseMod implements IConfigMod {
   // 列出来某配置在某环境下的配置
   public get(configKey: string, env: string) {
     const allConfig = this.list(env);
-    const configItem = allConfig.find((config) => {
-      return config.name === configKey;
-    });
-    return configItem?.value;
+    return allConfig?.[configKey];
   }
 
   // 列出来有哪些配置，列出来某个环境有哪些配置

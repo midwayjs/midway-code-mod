@@ -65,19 +65,6 @@ export class ConfigurationMod extends BaseMod implements IConfigurationMod {
       return member.name.escapedText === method;
     });
 
-    // 新增的block，无论有没有对应的方法，block总是要创建
-    const allMethodBlocks = [];
-    if (methodInfo.block) {
-      methodInfo.block.forEach((methodBlock) => {
-        const newBlock = codeToBlock(methodBlock);
-        if (Array.isArray(newBlock)) {
-          allMethodBlocks.push(...newBlock);
-        } else {
-          allMethodBlocks.push(newBlock);
-        }
-      });
-    }
-
     // 如果没有找到，那很简单，创建就行了
     if (!findMethodMember) {
       const methodMember = ts.createMethod(
@@ -99,7 +86,7 @@ export class ConfigurationMod extends BaseMod implements IConfigurationMod {
           );
         }),
         undefined,
-        ts.createBlock(allMethodBlocks, true),
+        ts.createBlock(this.getBlockList(methodInfo.params, methodInfo.block), true),
       );
       statement.members.push(methodMember);
       return this;
@@ -108,8 +95,28 @@ export class ConfigurationMod extends BaseMod implements IConfigurationMod {
     // 如果找到了，直接把新的block塞入到老的方法内部
     // Todo: 由于老的方法参数可能与既定的参数不一致，那么需要对内部的参数调用进行处理，例如 ${args[0]} 变量进行替换
     const blockStatements = findMethodMember.body.statements;
-    blockStatements.push(...allMethodBlocks);
+    blockStatements.push(...this.getBlockList(methodInfo.params, methodInfo.block));
     return this;
+  }
+
+  // 获取block的列表，代码段
+  private getBlockList(paramsNameList, codeList) {
+    if (!Array.isArray(codeList) || !codeList?.length) {
+      return [];
+    }
+    const allMethodBlocks = [];
+    codeList.map((code) => {
+      code = code.replace(/\$\{\s*args\[(\d+)\]\s*\}/ig, (matchedString, index) => {
+        return paramsNameList[index]?.name ?? matchedString;
+      });
+      const newBlock = codeToBlock(code);
+      if (Array.isArray(newBlock)) {
+        allMethodBlocks.push(...newBlock);
+      } else {
+        allMethodBlocks.push(newBlock);
+      }
+    });
+    return allMethodBlocks;
   }
 
   private getConfigurationItem(): IConfigurationItem {

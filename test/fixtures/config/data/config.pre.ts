@@ -1,0 +1,5 @@
+export = {
+  session: {
+    secure: false,
+  },
+};

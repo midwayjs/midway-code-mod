@@ -127,10 +127,18 @@ export const setFileExportVariable = (file: ts.SourceFile, variableName: string,
 
 // 获取一个文件导出的变量的值
 export const getFileExportVariable = (file: ts.SourceFile) => {
-  const variableList = [];
+  const variableList = {};
   // 获取AST分析结果
   const { SyntaxKind } = ts;
   for (const statement of file.statements) {
+    // export =
+    if (statement.kind === SyntaxKind.ExportAssignment) {
+      const expression = (statement as any)?.expression;
+      const expressionKind = expression?.kind;
+      if (expressionKind === SyntaxKind.ObjectLiteralExpression) {
+        return nodeToValue(expression);
+      }
+    }
     // 如果不是变量定义，不处理
     if (statement.kind !== SyntaxKind.VariableStatement) {
       continue;
@@ -150,10 +158,7 @@ export const getFileExportVariable = (file: ts.SourceFile) => {
     for (const declaration of declarations) {
       // 变量名
       const name = declaration.name.escapedText;
-      variableList.push({
-        name,
-        value: nodeToValue(declaration.initializer),
-      });
+      variableList[name] = nodeToValue(declaration.initializer);
     }
   }
   return variableList;

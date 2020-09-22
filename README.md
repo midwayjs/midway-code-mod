@@ -67,12 +67,11 @@ value === 123;
 
 列举某环境下的所有配置
 ```typescript
-list(env: string): Array<{
-  name: string;
-  value: any;
-}>;
+list(env: string): {
+  [configName: string]: any;
+};
 // demo:
-const configList = codeMod.config().list()
+const configs = codeMod.config().list()
 ```
 
 
@@ -205,13 +204,12 @@ codeMod.plugin().use('test2', {
 列出来所有插件
 
 ```typescript
-list(): Array<{
-  name: string;
-  value: any;
-}>;
+list(): {
+  [pluginName: string]: any;
+};
 
 // demo
-const pluginList = codeMod.plugin().list();
-pluginList[0].value === true;
+const plugins = codeMod.plugin().list();
+plugins.testPlugin === true;
 ```
 

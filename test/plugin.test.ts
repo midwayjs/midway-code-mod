@@ -31,13 +31,13 @@ describe('/test/plugin.test.ts', () => {
       })
       .use('test2');
 
-    const pluginList = codeModInstance
+    const plugins = codeModInstance
       .plugin()
       .list();
 
-    assert(pluginList.length === 3);
-    assert(pluginList[1].value.package === '@midwayjs/test');
-    assert(pluginList[1].value.enable === true);
+    assert(Object.keys(plugins).length === 3);
+    assert(plugins.test.package === '@midwayjs/test');
+    assert(plugins.test.enable === true);
     codeModInstance.done();
     assert(existsSync(join(source, 'configuration.ts')));
     assert(existsSync(join(source, 'config/plugin.ts')));
@@ -49,11 +49,10 @@ describe('/test/plugin.test.ts', () => {
     const codeModInstance = new MidwayCodeMod({
       root,
     });
-    const pluginList = codeModInstance
+    const plugins = codeModInstance
       .plugin()
       .list();
-    assert(pluginList[0].name === 'aaa');
-    assert(pluginList[0].value === true);
+    assert(plugins.aaa === true);
     await removeOutput();
   });
 });

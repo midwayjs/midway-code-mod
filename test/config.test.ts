@@ -104,14 +104,18 @@ describe('/test/config.test.ts', () => {
   });
   it('list', async () => {
     const { root, source } = await removeOutput();
-    const configFile = join(source, 'config/config.local.ts');
-    await copy(join(root, 'data/config.local.ts'), configFile);
+    const configLocalFile = join(source, 'config/config.local.ts');
+    await copy(join(root, 'data/config.local.ts'), configLocalFile);
+    const configPreFile = join(source, 'config/config.pre.ts');
+    await copy(join(root, 'data/config.pre.ts'), configPreFile);
     const codemodInstance = new MidwayCodeMod({
       root,
     });
-    const list = codemodInstance.config().list('local');
-    assert(list.length === 2);
+    const configKey = codemodInstance.config().list('local');
+    assert(Object.keys(configKey).length === 2);
     codemodInstance.done();
+    const preConfigKey: any = codemodInstance.config().list('pre');
+    assert(preConfigKey.session.secure === true);
     await removeOutput();
   });
 });

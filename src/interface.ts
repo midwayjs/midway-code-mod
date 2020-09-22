@@ -31,10 +31,9 @@ export interface IModInstance {
 export interface IConfigMod {
   set(configKey: string, multiEnvValue: any): IConfigMod;
   get(configKey: string, env: string): any;
-  list(env: string): Array<{
-    name: string;
-    value: any;
-  }>;
+  list(env: string): {
+    [configKey: string]: any;
+  };
 }
 
 export interface IConfigurationMod {
@@ -63,10 +62,9 @@ export interface IDenpendencyMod {
 
 export interface IPluginMod {
   use(pluginName: string, pluginOptions?: any): IPluginMod;
-  list(): Array<{
-    name: string;
-    value: any;
-  }>;
+  list(): {
+    [pluginName: string]: any;
+  };
 }
 
 export interface IConfigurationItem {
