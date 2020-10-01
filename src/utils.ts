@@ -134,10 +134,7 @@ export const getFileExportVariable = (file: ts.SourceFile) => {
     // export =
     if (statement.kind === SyntaxKind.ExportAssignment) {
       const expression = (statement as any)?.expression;
-      const expressionKind = expression?.kind;
-      if (expressionKind === SyntaxKind.ObjectLiteralExpression) {
-        return nodeToValue(expression);
-      }
+      return formatNodeValue(nodeToValue(expression));
     }
     // 如果不是变量定义，不处理
     if (statement.kind !== SyntaxKind.VariableStatement) {
@@ -158,14 +155,14 @@ export const getFileExportVariable = (file: ts.SourceFile) => {
     for (const declaration of declarations) {
       // 变量名
       const name = declaration.name.escapedText;
-      variableList[name] = nodeToValue(declaration.initializer);
+      variableList[name] = formatNodeValue(nodeToValue(declaration.initializer));
     }
   }
   return variableList;
 };
 
 // 转换 Ts Node 到 js 值
-export const nodeToValue = (node: ts.Node) => {
+export const nodeToValue = (node: any, globalValue?) => {
   if (!node) {
     return undefined;
   }
@@ -177,7 +174,7 @@ export const nodeToValue = (node: ts.Node) => {
       if (properties) {
         properties.forEach((propertie) => {
           const key = propertie.name.escapedText;
-          const value = nodeToValue(propertie.initializer);
+          const value = formatNodeValue(nodeToValue(propertie.initializer, globalValue));
           obj[key] = value;
         });
       }
@@ -188,7 +185,7 @@ export const nodeToValue = (node: ts.Node) => {
       const elements = (node as any).elements;
       if (elements) {
         elements.forEach((element) => {
-          arr.push(nodeToValue(element));
+          arr.push(formatNodeValue(nodeToValue(element, globalValue)));
         });
       }
       return arr;
@@ -218,6 +215,117 @@ export const nodeToValue = (node: ts.Node) => {
       if (text === 'undefined') {
         return undefined;
       }
+      if (globalValue && !globalValue[text]) {
+        globalValue[text] = {};
+      }
       return text;
+    // 运算符，赋值 加减乘除等
+    case ts.SyntaxKind.BinaryExpression:
+      const right = nodeToValue(node.right, globalValue);
+      const left = nodeToValue(node.left, globalValue);
+      const leftValue = formatNodeValue(left);
+      const rightValue = formatNodeValue(right);
+      if (node.operatorToken.kind === ts.SyntaxKind.EqualsToken) {
+        if (typeof left === 'string') {
+          if (globalValue) {
+            globalValue[left] = rightValue;
+          }
+        } else if (left?._setValue) {
+          left._setValue(rightValue);
+        }
+      } else if (node.operatorToken.kind === ts.SyntaxKind.PlusToken) {
+        return leftValue + rightValue;
+      } // Todo: more operatorToken
+      return rightValue;
+    // 属性访问 x.b
+    case ts.SyntaxKind.PropertyAccessExpression:
+      const propertyObj = nodeToValue(node.expression, globalValue);
+      let keyList = [];
+      let propertyValue = propertyObj;
+      if (typeof propertyObj === 'string') {
+        propertyValue = globalValue[propertyObj];
+        keyList = [propertyObj];
+      } else if (propertyObj._setValue) {
+        keyList = propertyObj.keyList || [];
+        propertyValue = {};
+      }
+      const name = node.name.escapedText;
+      keyList.push(name);
+      return {
+        _setValue: (newValue) => {
+          propertyValue[name] = newValue;
+          if (propertyObj._setValue) {
+            propertyObj._setValue(propertyValue);
+          }
+        },
+        keyList,
+        _getValue: () => {
+          return propertyValue[name] !== undefined ? propertyValue[name] : `$\{ ${keyList.join('.')} \}`;
+        },
+      };
+    // 属性取值 xx['xx']
+    case ts.SyntaxKind.ElementAccessExpression:
+      const eaPropertyObj = nodeToValue(node.expression, globalValue);
+      let eaKeyList = eaPropertyObj.keyList || [];
+      let eaPropertyValue = eaPropertyObj;
+      if (typeof eaPropertyObj === 'string') {
+        eaPropertyValue = globalValue[eaPropertyObj];
+        eaKeyList = [eaPropertyObj];
+      } else if (eaPropertyObj._setValue) {
+        eaPropertyValue = {};
+      }
+      const eaName = formatNodeValue(nodeToValue(node.argumentExpression, globalValue));
+      eaKeyList.push(eaName);
+      return {
+        _setValue: (newValue) => {
+          eaPropertyValue[eaName] = newValue;
+          if (eaPropertyObj._setValue) {
+            eaPropertyObj._setValue(eaPropertyValue);
+          }
+        },
+        keyList: eaKeyList,
+        _getValue: () => {
+          return eaPropertyValue[eaName] !== undefined ? eaPropertyValue[eaName] : `$\{ ${eaKeyList.join('.')} \}`;
+        },
+      };
+    // 箭头函数
+    case ts.SyntaxKind.ArrowFunction:
+      return guessFunctionReturnValue(node);
+    // 变量定义
+    case ts.SyntaxKind.VariableDeclaration:
+      const variableName: string = formatNodeValue(nodeToValue(node.name, globalValue));
+      const variableValue = formatNodeValue(nodeToValue(node.initializer, globalValue));
+      globalValue[variableName] = variableValue;
+      return variableValue;
+    // 小括号
+    case ts.SyntaxKind.ParenthesizedExpression:
+      return nodeToValue(node.expression, globalValue);
   }
+};
+
+// 探测方法返回值结构
+export const guessFunctionReturnValue = (functionStatement) => {
+  const statements = functionStatement?.body?.statements || [];
+  const functionVarMap = {};
+  statements.forEach((statement) => {
+    if (statement.kind === ts.SyntaxKind.VariableStatement) {
+      statement.declarationList.declarations.forEach((declaration) => {
+        nodeToValue(declaration, functionVarMap);
+      });
+    } else {
+      const expression = statement.expression;
+      nodeToValue(expression, functionVarMap);
+    }
+  });
+  const returnStatement = statements.find((statement) => {
+    return statement.kind === ts.SyntaxKind.ReturnStatement;
+  });
+  if (!returnStatement?.expression) {
+    return null;
+  }
+  return formatNodeValue(nodeToValue(returnStatement.expression, functionVarMap));
+};
+
+export const formatNodeValue = (value) => {
+  return value?._getValue ? value._getValue() : value;
 };

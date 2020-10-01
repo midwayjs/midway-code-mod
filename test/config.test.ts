@@ -108,10 +108,14 @@ describe('/test/config.test.ts', () => {
     await copy(join(root, 'data/config.local.ts'), configLocalFile);
     const configPreFile = join(source, 'config/config.pre.ts');
     await copy(join(root, 'data/config.pre.ts'), configPreFile);
+    const configDefaultile = join(source, 'config/config.default.ts');
+    await copy(join(root, 'data/config.default.ts'), configDefaultile);
     const codemodInstance = new MidwayCodeMod({
       root,
     });
     const configKey = codemodInstance.config().list('local');
+    const defaultConfig = codemodInstance.config().list('default');
+    assert(defaultConfig.test === 999);
     assert(Object.keys(configKey).length === 2);
     codemodInstance.done();
     const preConfigKey: any = codemodInstance.config().list('pre');
