@@ -1,6 +1,6 @@
 {
   "name": "@midwayjs/code-mod",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "code-mod",
   "typings": "dist/index.d.ts",
   "main": "dist/index.js",

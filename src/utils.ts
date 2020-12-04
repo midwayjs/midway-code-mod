@@ -126,15 +126,22 @@ export const setFileExportVariable = (file: ts.SourceFile, variableName: string,
 };
 
 // 获取一个文件导出的变量的值
+// export = 后如果有export xxx，则会忽略export =
+// 如果有 export default，则会使用export default，忽略其他所有
 export const getFileExportVariable = (file: ts.SourceFile) => {
   const variableList = {};
   // 获取AST分析结果
   const { SyntaxKind } = ts;
+  let exportAssignValue = {};
   for (const statement of file.statements) {
     // export =
     if (statement.kind === SyntaxKind.ExportAssignment) {
       const expression = (statement as any)?.expression;
-      return formatNodeValue(nodeToValue(expression));
+      exportAssignValue = formatNodeValue(nodeToValue(expression));
+      // export default
+      if (!(statement as any).isExportEquals) {
+        return exportAssignValue;
+      }
     }
     // 如果不是变量定义，不处理
     if (statement.kind !== SyntaxKind.VariableStatement) {
@@ -158,7 +165,13 @@ export const getFileExportVariable = (file: ts.SourceFile) => {
       variableList[name] = formatNodeValue(nodeToValue(declaration.initializer));
     }
   }
-  return variableList;
+
+  if (Object.keys(variableList).length) {
+    return variableList;
+  }
+
+  // export =
+  return exportAssignValue;
 };
 
 // 转换 Ts Node 到 js 值
