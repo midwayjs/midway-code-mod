@@ -59,6 +59,9 @@ export class MidwayCodeMod {
     });
     const astCache = this.getCache(CacheType.AST);
     Object.keys(astCache).forEach((filePath) => {
+      if (/;/.test(filePath)) {
+        return;
+      }
       if (!result.files) {
         result.files = [];
       }

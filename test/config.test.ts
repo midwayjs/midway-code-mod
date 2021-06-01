@@ -122,4 +122,21 @@ describe('/test/config.test.ts', () => {
     assert(preConfigKey.session.secure === true);
     await removeOutput();
   });
+  it('list multiEnv', async () => {
+    const { root, source } = await removeOutput();
+    const configLocalFile = join(source, 'config/config.local.ts');
+    await copy(join(root, 'data/config.local.ts'), configLocalFile);
+    const configPreFile = join(source, 'config/config.pre.ts');
+    await copy(join(root, 'data/config.pre.ts'), configPreFile);
+    const configDefaultile = join(source, 'config/config.default.ts');
+    await copy(join(root, 'data/config.default.ts'), configDefaultile);
+    const codemodInstance = new MidwayCodeMod({
+      root,
+    });
+    const configKey = codemodInstance.config().list(['local', 'pre']);
+    assert(configKey.length === 2);
+    codemodInstance.done();
+    assert(configKey[1].session.secure === true);
+    await removeOutput();
+  });
 });
