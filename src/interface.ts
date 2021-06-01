@@ -1,7 +1,7 @@
 import { ProjectType } from './constants';
 import * as ts from 'typescript';
 export interface IModCore {
-  getAstByFile(filePath: string): any;
+  getAstByFile(filePath: string|string[]): any;
   getPkgJson(): any;
   getInstance(): IModInstance;
 }
