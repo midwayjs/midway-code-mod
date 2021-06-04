@@ -59,6 +59,9 @@ export class MidwayCodeMod {
     });
     const astCache = this.getCache(CacheType.AST);
     Object.keys(astCache).forEach((filePath) => {
+      if (/;/.test(filePath)) {
+        return;
+      }
       if (!result.files) {
         result.files = [];
       }
@@ -140,16 +143,32 @@ export class MidwayCodeMod {
   }
 
   // 根据文件路径获取AST，如果不存在则创建空的AST
-  private getAstByFile(filePath: string) {
-    return this.getCache(CacheType.AST, filePath, () => {
-      let file: ts.SourceFile;
-      if (existsSync(filePath)) {
-        const program: ts.Program = ts.createProgram([filePath], {});
-        file = program.getSourceFile(filePath);
+  private getAstByFile(filePath: string | string[]) {
+    const cacheKey = [].concat(filePath).join(';');
+    return this.getCache(CacheType.AST, cacheKey, () => {
+      if (Array.isArray(filePath)) {
+        const existsFiles = filePath.filter((fileName: string) => {
+          return existsSync(fileName);
+        });
+        const program: ts.Program = ts.createProgram(existsFiles, {
+          skipDefaultLibCheck: true,
+          skipLibCheck: true,
+        });
+        const files = existsFiles.map((fileName: string) => program.getSourceFile(fileName));
+        return { files };
       } else {
-        file = ts.createSourceFile(filePath, '', ts.ScriptTarget.ES2018);
+        let file: ts.SourceFile;
+        if (existsSync(filePath)) {
+          const program: ts.Program = ts.createProgram([filePath], {
+            skipLibCheck: true,
+            skipDefaultLibCheck: true,
+          });
+          file = program.getSourceFile(filePath);
+        } else {
+          file = ts.createSourceFile(filePath, '', ts.ScriptTarget.ES2018);
+        }
+        return { file };
       }
-      return { file };
     });
   }
 
