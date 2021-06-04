@@ -23,7 +23,7 @@ export class ConfigMod extends BaseMod implements IConfigMod {
     const { faasRoot } = this.options;
     if (Array.isArray(env)) {
       const { files } = this.core.getAstByFile(env.map((envItem: string) => join(faasRoot, `config/config.${envItem}.ts`)));
-      return files.map(file => getFileExportVariable(file));
+      return files.map((file: any) => getFileExportVariable(file));
     } else {
       const { file } = this.core.getAstByFile(join(faasRoot, `config/config.${env}.ts`));
       return getFileExportVariable(file);

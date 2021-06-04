@@ -34,9 +34,9 @@ export interface IConfigMod {
   list(env: string): {
     [configKey: string]: any;
   };
-  list(env: string[]): {
+  list(env: string[]): Array<{
     [configKey: string]: any;
-  }[];
+  }>;
 }
 
 export interface IConfigurationMod {
