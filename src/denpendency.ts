@@ -44,11 +44,11 @@ export class DenpendencyMod extends BaseMod implements IDenpendencyMod {
         this.getImportNamedBindings(importType, namedList),
         createAstValue(moduleName),
       );
-      file.statements.unshift(importStatemanet);
+      (file.statements as any).unshift(importStatemanet);
       return this;
     }
 
-    const { importClause } = importConfiguration;
+    const { importClause } = (importConfiguration as any);
     if (importType === ImportType.NAMED) {
       // 如果都是named导入
       if (importClause.namedBindings.kind === SyntaxKind.NamedImports) {

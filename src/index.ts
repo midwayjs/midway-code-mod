@@ -4,6 +4,8 @@ import { ConfigMod } from './config';
 import { ConfigurationMod } from './configuration';
 import { DenpendencyMod } from './denpendency';
 import { PluginMod } from './plugin';
+
+import { DepDumpMod } from './depDump';
 import { ProjectType, CacheType } from './constants';
 import { existsSync, writeFileSync, readFileSync, ensureFileSync } from 'fs-extra';
 import * as prettier from 'prettier';
@@ -48,6 +50,11 @@ export class MidwayCodeMod {
   // 插入依赖，插入到package.json文件内
   public denpendency(): IDenpendencyMod {
     return this.instance.denpendency;
+  }
+
+  // 依赖分析
+  public depDump() {
+    return this.instance.depDump;
   }
 
   // 输出生成的文件
@@ -127,6 +134,7 @@ export class MidwayCodeMod {
       configuration: new ConfigurationMod(modCore, modOption),
       denpendency: new DenpendencyMod(modCore, modOption),
       plugin: new PluginMod(modCore, modOption),
+      depDump: new DepDumpMod(modCore, modOption),
     };
   }
 
@@ -143,7 +151,7 @@ export class MidwayCodeMod {
   }
 
   // 根据文件路径获取AST，如果不存在则创建空的AST
-  private getAstByFile(filePath: string | string[]) {
+  private getAstByFile(filePath: string | string[]): { files?: ts.SourceFile[]; file?: ts.SourceFile } {
     const cacheKey = [].concat(filePath).join(';');
     return this.getCache(CacheType.AST, cacheKey, () => {
       if (Array.isArray(filePath)) {

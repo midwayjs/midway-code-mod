@@ -19,7 +19,7 @@ export class ConfigMod extends BaseMod implements IConfigMod {
   }
 
   // 列出来有哪些配置，列出来某个环境有哪些配置
-  public list(env: string | string[]) {
+  public list(env: string | string[]): any {
     const { faasRoot } = this.options;
     if (Array.isArray(env)) {
       const { files } = this.core.getAstByFile(env.map((envItem: string) => join(faasRoot, `config/config.${envItem}.ts`)));
