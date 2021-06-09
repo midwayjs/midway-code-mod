@@ -1,7 +1,7 @@
 import { ProjectType } from './constants';
 import * as ts from 'typescript';
 export interface IModCore {
-  getAstByFile(filePath: string|string[]): any;
+  getAstByFile(filePath: string|string[]): { files?: ts.SourceFile[]; file?: ts.SourceFile };
   getPkgJson(): any;
   getInstance(): IModInstance;
 }
@@ -26,6 +26,7 @@ export interface IModInstance {
   configuration: IConfigurationMod;
   denpendency: IDenpendencyMod;
   plugin: IPluginMod;
+  depDump: IDepDumpMod;
 }
 
 export interface IConfigMod {
@@ -73,4 +74,37 @@ export interface IPluginMod {
 export interface IConfigurationItem {
   decorator: ts.Decorator;
   statement: any;
+}
+
+
+
+export interface IDepDumpMod {
+  dumpFiles(): Promise<IDepDump>;
+  dumpToGraphvizDot(depDump: IDepDump, options?: {
+    skipMod?: boolean;
+    onlyInject?: boolean;
+    onlyImport?: boolean;
+    onlyUndep?: boolean;
+  }): string;
+}
+
+export interface IDepDump {
+  [filePath: string]: IDepDumpFile;
+}
+
+export interface IDepDumpFile {
+  display: string;
+  deps: {
+    [fileName: string]: {
+      type: string,
+      isMod: boolean;
+      typeOnly: boolean;
+      exports: {
+        [exportName: string]: string
+      }
+    }
+  },
+  exports: {
+
+  }
 }
