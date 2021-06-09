@@ -136,7 +136,7 @@ export class ConfigurationMod extends BaseMod implements IConfigurationMod {
     });
 
     if (!file.statements) {
-      file.statements = [];
+      (file as any).statements = [];
     }
     // 寻找有 Configuration 的class
     let configurationItem;
@@ -183,7 +183,7 @@ export class ConfigurationMod extends BaseMod implements IConfigurationMod {
         decorator,
         statement: configurationStatement,
       };
-      file.statements.push(configurationStatement);
+      (file.statements as any).push(configurationStatement);
     }
     this.configurationItem = configurationItem;
     return this.configurationItem;
